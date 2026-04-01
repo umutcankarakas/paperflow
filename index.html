@@ -1425,11 +1425,13 @@ document.getElementById('inColLabel').addEventListener('keydown',e=>{if(e.key===
 document.getElementById('setupKey').addEventListener('keydown',e=>{if(e.key==='Enter')saveSetup();});
 
 // ===== INIT =====
+const SUPA_URL='__SUPA_URL__';
+const SUPA_KEY='__SUPA_KEY__';
 async function init(){
   if(localStorage.getItem('pf_dark')==='1'){document.body.classList.add('dark');document.getElementById('darkBtn').textContent='☀️  Light Mode';}
   meId=localStorage.getItem('pf_me')||null;
-  const url=localStorage.getItem('pf_supa_url');
-  const key=localStorage.getItem('pf_supa_key');
+  const url=SUPA_URL!=='__SUPA_URL__'?SUPA_URL:localStorage.getItem('pf_supa_url');
+  const key=SUPA_KEY!=='__SUPA_KEY__'?SUPA_KEY:localStorage.getItem('pf_supa_key');
   if(!url||!key){document.getElementById('lo').classList.add('hidden');openModal('mSetup');return;}
   db=createClient(url,key);
   try{

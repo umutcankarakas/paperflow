@@ -1152,7 +1152,7 @@ function openLitDetail(rid){
     } else if(c.type==='url'){
       return `<div class="fg"><label class="fl">${esc(c.label)}${val?` — <a href="${esc(val)}" target="_blank" style="color:var(--primary);text-decoration:none;font-weight:400">🔗 Open</a>`:''}</label><input class="fi ld-field" data-col-id="${c.id}" type="url" value="${esc(val)}" placeholder="https://..."></div>`;
     } else {
-      return `<div class="fg"><label class="fl">${esc(c.label)}</label><input class="fi ld-field" data-col-id="${c.id}" type="text" value="${esc(val)}" placeholder="—"></div>`;
+      return `<div class="fg"><label class="fl">${esc(c.label)}</label><textarea class="fi ld-field" data-col-id="${c.id}" rows="2" placeholder="—" style="resize:vertical;font-family:inherit;line-height:1.5">${esc(val)}</textarea></div>`;
     }
   }).join('');
   openModal('mLitDetail');

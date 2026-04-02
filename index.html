@@ -683,6 +683,31 @@ body.dark ::-webkit-scrollbar-thumb{background:#4B5563}
   </div>
 </div>
 
+<!-- LIT ROW DETAIL -->
+<div class="overlay hidden" id="mLitDetail">
+  <div class="modal modal-lg">
+    <div class="mh">
+      <div>
+        <div class="mt">Reference Details</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <span id="ldStatusBadge" style="cursor:pointer" onclick="openStatusPickerInModal()"></span>
+          <span style="font-size:12px;color:var(--muted)">Highlight:</span>
+          <div id="ldHlDot" class="hl-dot" style="cursor:pointer" onclick="openHlPickerInModal()"></div>
+        </div>
+      </div>
+      <button class="mc" onclick="closeModal('mLitDetail')">×</button>
+    </div>
+    <div class="mb" id="ldFields"></div>
+    <div class="mf">
+      <div class="mfl"><button class="btn btn-danger" onclick="delLitRowFromDetail()">🗑 Delete</button></div>
+      <div class="mfr">
+        <button class="btn btn-g" onclick="closeModal('mLitDetail')">Cancel</button>
+        <button class="btn btn-p" id="btnSaveLitRow" onclick="saveLitDetail()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- EDIT NOTE -->
 <div class="overlay hidden" id="mEditNote">
   <div class="modal" style="max-width:500px">
@@ -1050,10 +1075,10 @@ function renderLit(){
     const hl=r.highlight;
     const st=LIT_STATUS[r.status||'unread']||LIT_STATUS.unread;
     const hlStyle=hl?`background:${hl}30`:'';
-    return `<tr class="ltr" style="${hlStyle}" draggable="true"
+    return `<tr class="ltr" style="${hlStyle}" draggable="true" onclick="openLitDetail('${r.id}')"
       ondragstart="litDragStart(event,'${r.id}')" ondragend="litDragEnd(event)"
       ondragover="litDragOver(event,'${r.id}')" ondrop="litDrop(event,'${r.id}')">
-      <td class="ltd ltd-drag" title="Drag to reorder">⠿</td>
+      <td class="ltd ltd-drag" onclick="event.stopPropagation()" title="Drag to reorder">⠿</td>
       <td class="ltd ltd-hl" onclick="event.stopPropagation();openHlPicker('${r.id}',this)">
         <div class="hl-dot" style="background:${hl||'var(--border)'}"></div>
       </td>
@@ -1064,10 +1089,10 @@ function renderLit(){
         const val=(r.data||{})[c.id]||'';
         let disp='';
         if(c.type==='url'&&val){disp=`<a href="${esc(val)}" target="_blank" onclick="event.stopPropagation()" class="lit-url">🔗 Open</a>`;}
-        else if(c.type==='notes'){disp=val?`<span class="note-preview" title="${esc(val)}">${esc(val)}</span>`:`<span class="lit-empty-cell">—</span>`;}
-        else if(c.type==='pdf'){disp=val?`<a href="${esc(val)}" target="_blank" onclick="event.stopPropagation()" class="lit-url">📄 View PDF</a><span class="pdf-replace" onclick="event.stopPropagation();triggerPdfUpload('${r.id}','${c.id}')">replace</span>`:`<span class="pdf-upload-hint">📎 Click to upload</span>`;}
-        else{disp=val?`<span title="${esc(val)}">${esc(val)}</span>`:`<span class="lit-empty-cell">—</span>`;}
-        return `<td class="ltd ltd-cell ${c.type==='url'?'ltd-url':''} ${c.type==='notes'?'ltd-notes':''}" data-row-id="${r.id}" data-col-id="${c.id}" data-col-type="${c.type}" onclick="editLitCell(event)">${disp}</td>`;
+        else if(c.type==='notes'){disp=val?`<span class="note-preview">${esc(val)}</span>`:`<span class="lit-empty-cell">—</span>`;}
+        else if(c.type==='pdf'){disp=val?`<a href="${esc(val)}" target="_blank" onclick="event.stopPropagation()" class="lit-url">📄 View PDF</a>`:`<span class="pdf-upload-hint">📎 —</span>`;}
+        else{disp=val?`<span>${esc(val)}</span>`:`<span class="lit-empty-cell">—</span>`;}
+        return `<td class="ltd ltd-cell ${c.type==='notes'?'ltd-notes':''}" onclick="event.stopPropagation();openLitDetail('${r.id}')">${disp}</td>`;
       }).join('')}
       <td class="ltd" style="width:32px"></td>
       <td class="ltd" style="width:32px;text-align:center"><button class="del-btn" onclick="event.stopPropagation();delLitRow('${r.id}')">×</button></td>
@@ -1104,7 +1129,67 @@ async function delLitRow(rid){
   renderLit();
 }
 
-let noteEditRowId=null,noteEditColId=null,pdfUploadRowId=null,pdfUploadColId=null;
+let noteEditRowId=null,noteEditColId=null,pdfUploadRowId=null,pdfUploadColId=null,litDetailRowId=null;
+
+// ===== LIT ROW DETAIL =====
+function openLitDetail(rid){
+  const row=byId(S.litRows,rid);if(!row)return;
+  litDetailRowId=rid;
+  const cols=litCols();
+  const st=LIT_STATUS[row.status||'unread']||LIT_STATUS.unread;
+  const hl=row.highlight||'';
+  document.getElementById('ldStatusBadge').innerHTML=`<span class="lit-status-badge" style="background:${st.bg};color:${st.tc}">${st.label}</span>`;
+  document.getElementById('ldHlDot').style.background=hl||'var(--border)';
+  document.getElementById('ldFields').innerHTML=cols.map(c=>{
+    const val=(row.data||{})[c.id]||'';
+    if(c.type==='notes'){
+      return `<div class="fg"><label class="fl">${esc(c.label)}</label><textarea class="fi ld-field" data-col-id="${c.id}" rows="5" placeholder="Write notes..." style="resize:vertical;min-height:100px;font-family:inherit;line-height:1.6">${esc(val)}</textarea></div>`;
+    } else if(c.type==='url'){
+      return `<div class="fg"><label class="fl">${esc(c.label)}${val?` — <a href="${esc(val)}" target="_blank" style="color:var(--primary);text-decoration:none;font-weight:400">🔗 Open</a>`:''}</label><input class="fi ld-field" data-col-id="${c.id}" type="url" value="${esc(val)}" placeholder="https://..."></div>`;
+    } else if(c.type==='pdf'){
+      return `<div class="fg"><label class="fl">${esc(c.label)}</label><div style="display:flex;align-items:center;gap:8px">${val?`<a href="${esc(val)}" target="_blank" class="btn btn-g btn-sm">📄 View PDF</a>`:'<span style="font-size:13px;color:var(--muted)">No PDF uploaded</span>'}<button class="btn btn-g btn-sm" onclick="triggerPdfUploadInDetail('${c.id}')">📎 ${val?'Replace':'Upload'}</button></div></div>`;
+    } else {
+      return `<div class="fg"><label class="fl">${esc(c.label)}</label><input class="fi ld-field" data-col-id="${c.id}" type="text" value="${esc(val)}" placeholder="—"></div>`;
+    }
+  }).join('');
+  openModal('mLitDetail');
+  const first=document.querySelector('#ldFields .ld-field');if(first)setTimeout(()=>first.focus(),80);
+}
+
+function openStatusPickerInModal(){
+  const badge=document.getElementById('ldStatusBadge');
+  openStatusPicker(litDetailRowId,badge);
+  const orig=setLitStatus;
+  // patch: after status set, also refresh modal badge
+}
+
+function openHlPickerInModal(){
+  const dot=document.getElementById('ldHlDot');
+  openHlPicker(litDetailRowId,dot);
+}
+
+function triggerPdfUploadInDetail(colId){
+  pdfUploadRowId=litDetailRowId;pdfUploadColId=colId;
+  document.getElementById('pdfFileInput').value='';
+  document.getElementById('pdfFileInput').click();
+}
+
+async function saveLitDetail(){
+  const row=byId(S.litRows,litDetailRowId);if(!row)return;
+  setBusy('btnSaveLitRow',true);
+  const fields=document.querySelectorAll('#ldFields .ld-field');
+  fields.forEach(f=>{row.data={...(row.data||{}),[f.dataset.colId]:f.value};});
+  await db.from('lit_rows').update({data:row.data}).eq('id',litDetailRowId);
+  setBusy('btnSaveLitRow',false);
+  closeModal('mLitDetail');renderLit();
+}
+
+async function delLitRowFromDetail(){
+  if(!confirm('Remove this reference?'))return;
+  await db.from('lit_rows').delete().eq('id',litDetailRowId);
+  S.litRows=S.litRows.filter(r=>r.id!==litDetailRowId);
+  closeModal('mLitDetail');renderLit();
+}
 
 function editLitCell(event){
   const cell=event.currentTarget;
@@ -1263,6 +1348,7 @@ async function setLitHl(rid,color){
   await db.from('lit_rows').update({highlight:color}).eq('id',rid);
   document.getElementById('popover').classList.add('hidden');
   renderLit();
+  if(litDetailRowId===rid){document.getElementById('ldHlDot').style.background=color||'var(--border)';}
 }
 
 async function setLitStatus(rid,status){
@@ -1271,6 +1357,7 @@ async function setLitStatus(rid,status){
   await db.from('lit_rows').update({status}).eq('id',rid);
   document.getElementById('popover').classList.add('hidden');
   renderLit();
+  if(litDetailRowId===rid){const st=LIT_STATUS[status]||LIT_STATUS.unread;document.getElementById('ldStatusBadge').innerHTML=`<span class="lit-status-badge" style="background:${st.bg};color:${st.tc}">${st.label}</span>`;}
 }
 
 // ===== LIT DRAG =====

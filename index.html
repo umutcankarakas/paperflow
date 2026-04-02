@@ -1268,7 +1268,7 @@ async function onPdfFileSelected(event){
   const path=`${sel}/${pdfUploadRowId}_${file.name}`;
   showErr('Uploading PDF…');
   const{data,error}=await db.storage.from('pdfs').upload(path,file,{upsert:true});
-  if(error){showErr('Upload failed. Create a public bucket named "pdfs" in Supabase Storage first.');pdfUploadRowId=null;pdfUploadColId=null;return;}
+  if(error){showErr('Upload failed: '+error.message);pdfUploadRowId=null;pdfUploadColId=null;return;}
   const{data:{publicUrl}}=db.storage.from('pdfs').getPublicUrl(path);
   row.data={...(row.data||{}),[pdfUploadColId]:publicUrl};
   await db.from('lit_rows').update({data:row.data}).eq('id',pdfUploadRowId);

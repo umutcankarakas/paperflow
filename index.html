@@ -1109,6 +1109,7 @@ function triggerPdfUpload(rowId,colId){
 async function onPdfFileSelected(event){
   const file=event.target.files[0];
   if(!file||!pdfUploadRowId||!pdfUploadColId)return;
+  if(file.size>10*1024*1024){showErr('PDF exceeds 10 MB limit.');pdfUploadRowId=null;pdfUploadColId=null;return;}
   const row=byId(S.litRows,pdfUploadRowId);
   if(!row)return;
   const path=`${sel}/${pdfUploadRowId}_${file.name}`;

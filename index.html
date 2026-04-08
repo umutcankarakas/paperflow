@@ -1680,7 +1680,7 @@ async function loadApp(){
     if(box&&currentUser){box.style.display='block';document.getElementById('authUserEmail').textContent=currentUser.email;}
     meId=localStorage.getItem('pf_me')||null;
     renderMeSelect();renderSidebar();renderHeader();
-    document.getElementById('dashView').classList.remove('hidden');renderDash();
+    showDash();
     setupRealtime();
   }catch(err){
     document.getElementById('loMsg').textContent='Failed to load data.';

@@ -541,6 +541,14 @@ body.dark ::-webkit-scrollbar-thumb{background:#4B5563}
         <div class="fg"><label class="fl">URL / DOI</label><input class="fi" id="pdUrl" placeholder="https://..."></div>
       </div>
       <div class="fg"><label class="fl">Notes</label><textarea class="fi" id="pdNotes" rows="4" placeholder="Authors, venue, summary..." style="resize:vertical"></textarea></div>
+      <div class="fg">
+        <label class="fl">Members</label>
+        <div id="pdMembersList" style="margin-bottom:8px"></div>
+        <div style="display:flex;gap:7px">
+          <input class="fi" id="pdMemberEmail" placeholder="email@example.com" type="email" style="flex:1">
+          <button class="btn btn-p btn-sm" onclick="addPaperMember()">+ Invite</button>
+        </div>
+      </div>
     </div>
     <div class="mf">
       <div class="mfl"><button class="btn btn-danger" id="btnDelPaper" onclick="delPaperFromDetail()">🗑 Delete</button></div>
@@ -747,7 +755,7 @@ const { createClient } = window.supabase;
 let db;
 
 // ===== STATE =====
-let S = { papers:[], tasks:[], people:[], labels:[], litCols:[], litRows:[] };
+let S = { papers:[], tasks:[], people:[], labels:[], litCols:[], litRows:[], paperMembers:[] };
 let sel=null, view='dash', editId=null, addStatus='todo';
 let picks=new Set(), labelPicks=new Set(), dragId=null;
 let meId=localStorage.getItem('pf_me')||null;
@@ -798,17 +806,18 @@ function litRows(pid){return S.litRows.filter(r=>r.paper_id===(pid||sel)).sort((
 
 // ===== DB SETUP =====
 async function loadAll(){
-  const [pr,tr,per,lr,lc,lrw]=await Promise.all([
+  const [pr,tr,per,lr,lc,lrw,pm]=await Promise.all([
     db.from('papers').select('*').order('created_at'),
     db.from('tasks').select('*').order('created_at'),
     db.from('people').select('*').order('created_at'),
     db.from('labels').select('*').order('created_at'),
     db.from('lit_columns').select('*').order('sort_order'),
     db.from('lit_rows').select('*').order('sort_order'),
+    db.from('paper_members').select('*').order('created_at'),
   ]);
   if(pr.error||tr.error||per.error||lr.error||lc.error||lrw.error)throw new Error('load failed');
   S.papers=pr.data||[];S.tasks=tr.data||[];S.people=per.data||[];S.labels=lr.data||[];
-  S.litCols=lc.data||[];S.litRows=lrw.data||[];
+  S.litCols=lc.data||[];S.litRows=lrw.data||[];S.paperMembers=pm.data||[];
 }
 
 async function loadComments(tid){const{data}=await db.from('comments').select('*').eq('task_id',tid).order('created_at');return data||[];}
@@ -821,6 +830,7 @@ function setupRealtime(){
     .on('postgres_changes',{event:'*',schema:'public',table:'labels'},onRemote)
     .on('postgres_changes',{event:'*',schema:'public',table:'lit_columns'},onRemote)
     .on('postgres_changes',{event:'*',schema:'public',table:'lit_rows'},onRemote)
+    .on('postgres_changes',{event:'*',schema:'public',table:'paper_members'},onRemote)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'comments'},payload=>{
       if(editId&&payload.new.task_id===editId){currentComments.push(payload.new);renderComments();}
     })
@@ -1372,8 +1382,35 @@ function openPaperDetail(pid){
   document.getElementById('pdUrl').value=p.url||'';
   document.getElementById('pdNotes').value=p.notes||'';
   document.getElementById('pdStatus').value=p.status||'reading';
+  document.getElementById('pdMemberEmail').value='';
+  renderPaperMembers();
   openModal('mPaperDetail');
   setTimeout(()=>document.getElementById('pdTitle').focus(),80);
+}
+function renderPaperMembers(){
+  const members=S.paperMembers.filter(m=>m.paper_id===editPaperId);
+  const el=document.getElementById('pdMembersList');
+  if(!members.length){el.innerHTML='<div style="font-size:12px;color:var(--muted)">No members yet</div>';return;}
+  el.innerHTML=members.map(m=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 9px;background:var(--bg);border-radius:7px;margin-bottom:4px;font-size:13px">
+    <span>${esc(m.user_email)}</span>
+    <button class="del-btn" onclick="removePaperMember('${m.id}')">×</button>
+  </div>`).join('');
+}
+async function addPaperMember(){
+  const email=document.getElementById('pdMemberEmail').value.trim().toLowerCase();
+  if(!email)return;
+  if(S.paperMembers.find(m=>m.paper_id===editPaperId&&m.user_email===email)){showErr('Already a member.');return;}
+  const row={id:uid(),paper_id:editPaperId,user_email:email};
+  const{data,error}=await db.from('paper_members').insert(row).select().single();
+  if(error){showErr('Failed to add member.');return;}
+  S.paperMembers.push(data);
+  document.getElementById('pdMemberEmail').value='';
+  renderPaperMembers();
+}
+async function removePaperMember(mid){
+  await db.from('paper_members').delete().eq('id',mid);
+  S.paperMembers=S.paperMembers.filter(m=>m.id!==mid);
+  renderPaperMembers();
 }
 async function savePaperDetail(){
   const p=byId(S.papers,editPaperId);if(!p)return;
@@ -1410,6 +1447,9 @@ async function addPaper(){
   setBusy('btnAddPaper',false);
   if(error){showErr('Failed to add paper.');return;}
   S.papers.push(data);
+  const mem={id:uid(),paper_id:data.id,user_email:currentUser.email};
+  const{data:md}=await db.from('paper_members').insert(mem).select().single();
+  if(md)S.paperMembers.push(md);
   closeModal('mAddPaper');renderSidebar();selPaper(data.id);
 }
 async function delPaper(pid){

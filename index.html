@@ -889,6 +889,7 @@ function renderHeader(){
 
 function renderMeSelect(){
   const s=document.getElementById('meSelect');
+  if(!s)return;
   s.innerHTML=`<option value="">— select yourself —</option>`+S.people.map(p=>`<option value="${p.id}" ${meId===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
   if(meId&&!S.people.find(p=>p.id===meId))meId=null;
 }

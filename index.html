@@ -76,8 +76,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .me-lbl{font-size:10px;color:rgba(255,255,255,.35);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
 .me-sel{width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#fff;font-size:12px;padding:5px 7px;cursor:pointer;outline:none;font-family:inherit}
 .me-sel option{background:#0B1D5E}
-.sb-reconfigure{font-size:11px;color:rgba(255,255,255,.25);background:none;border:none;cursor:pointer;padding:4px 12px;text-align:left;width:100%;transition:color .15s}
-.sb-reconfigure:hover{color:rgba(255,255,255,.55)}
 
 /* MAIN */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
@@ -415,7 +413,11 @@ body.dark ::-webkit-scrollbar-thumb{background:#4B5563}
       </select>
     </div>
     <button class="sb-btn" onclick="toggleDark()" id="darkBtn">🌙 &nbsp;Dark Mode</button>
-    <button class="sb-reconfigure" onclick="reconfigure()">⚙ Reconfigure database</button>
+    <div class="me-box" id="authUserBox" style="display:none">
+      <div class="me-lbl">Signed in as</div>
+      <div id="authUserEmail" style="font-size:11px;color:rgba(255,255,255,.55);padding:2px 0;word-break:break-all"></div>
+    </div>
+    <button class="sb-btn" onclick="signOut()">🚪 &nbsp;Sign Out</button>
   </div>
 </aside>
 
@@ -488,7 +490,6 @@ body.dark ::-webkit-scrollbar-thumb{background:#4B5563}
       </div>
     </div>
     <div class="arc-view hidden" id="archiveView"><div class="arc-list" id="archiveList"></div></div>
-    <div class="act-view hidden" id="activityView"><div class="act-list" id="activityList"></div></div>
     <div class="lit-view hidden" id="litView">
       <div class="lit-toolbar">
         <button class="btn btn-p btn-sm" onclick="addLitRow()">+ Add Paper</button>
@@ -509,27 +510,24 @@ body.dark ::-webkit-scrollbar-thumb{background:#4B5563}
 </main>
 
 <!-- SETUP MODAL -->
-<div class="overlay hidden" id="mSetup">
-  <div class="modal">
+<!-- AUTH -->
+<div class="overlay hidden" id="mAuth">
+  <div class="modal" style="max-width:400px">
     <div class="mh">
       <div>
-        <div class="mt">👋 Welcome to PaperFlow</div>
-        <div style="font-size:13px;color:var(--muted);margin-top:3px">Connect your Supabase database to get started</div>
+        <div class="logo" style="margin-bottom:8px"><div class="logo-icon">📄</div>PaperFlow</div>
+        <div class="mt" id="authTitle">Sign in to continue</div>
       </div>
     </div>
     <div class="mb">
-      <div class="setup-steps">
-        1. Create a free project at <a href="https://supabase.com" target="_blank">supabase.com</a><br>
-        2. Open <strong>SQL Editor</strong> and run the contents of <code>schema.sql</code><br>
-        3. Go to <strong>Settings → API</strong> and copy your URL and anon key below
-      </div>
-      <div class="fg"><label class="fl">Project URL</label><input class="fi" id="setupUrl" placeholder="https://xxxxxxxxxxxx.supabase.co"></div>
-      <div class="fg"><label class="fl">Anon Public Key</label><input class="fi" id="setupKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></div>
-      <div class="setup-err" id="setupErr"></div>
+      <div id="authErr" style="color:#EF4444;font-size:13px;margin-bottom:10px;min-height:16px"></div>
+      <div class="fg"><label class="fl">Email</label><input class="fi" id="authEmail" type="email" placeholder="you@example.com"></div>
+      <div class="fg"><label class="fl">Password</label><input class="fi" id="authPassword" type="password" placeholder="••••••••"></div>
     </div>
-    <div class="mf"><div></div><div class="mfr">
-      <button class="btn btn-p" id="btnSaveSetup" onclick="saveSetup()">Connect →</button>
-    </div></div>
+    <div class="mf">
+      <button class="btn btn-g" id="authToggleBtn" onclick="toggleAuthMode()">Create account</button>
+      <button class="btn btn-p" id="btnAuth" onclick="submitAuth()">Sign in →</button>
+    </div>
   </div>
 </div>
 
@@ -821,8 +819,6 @@ async function loadAll(){
 }
 
 async function loadComments(tid){const{data}=await db.from('comments').select('*').eq('task_id',tid).order('created_at');return data||[];}
-async function loadActivity(pid){const{data}=await db.from('activity').select('*').eq('paper_id',pid).order('created_at',{ascending:false}).limit(60);return data||[];}
-async function logAct(pid,title,action){await db.from('activity').insert({id:uid(),paper_id:pid,task_title:title,action,actor:meName()});}
 
 function setupRealtime(){
   db.channel('db-all')
@@ -851,7 +847,7 @@ function renderAll(){
   if(view==='dash')renderDash();
   else if(view==='board')renderBoard();
   else if(view==='archive')renderArchive();
-  else if(view==='activity')renderActivity();
+  
   else if(view==='lit')renderLit();
 }
 
@@ -882,7 +878,6 @@ function renderHeader(){
   ha.innerHTML=`<div class="vtabs">
     <button class="vtab ${view==='board'?'active':''}" onclick="switchView('board')">Board</button>
     <button class="vtab ${view==='archive'?'active':''}" onclick="switchView('archive')">Archive</button>
-    <button class="vtab ${view==='activity'?'active':''}" onclick="switchView('activity')">Activity</button>
     <button class="vtab ${view==='lit'?'active':''}" onclick="switchView('lit')">Literature</button>
   </div><button class="btn btn-g btn-sm" onclick="toggleDark()">${document.body.classList.contains('dark')?'☀️':'🌙'}</button>`;
   fb.classList.toggle('hidden',view!=='board');
@@ -906,29 +901,28 @@ function updateFilterSelects(){
 // ===== VIEW SWITCH =====
 function showDash(){
   sel=null;view='dash';
-  ['emptyState','boardView','archiveView','activityView','litView'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  ['emptyState','boardView','archiveView','litView'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   document.getElementById('dashView').classList.remove('hidden');
   renderSidebar();renderHeader();renderDash();
 }
 
 function switchView(v){
   view=v;
-  ['boardView','archiveView','activityView','litView'].forEach(id=>document.getElementById(id).classList.toggle('hidden',!id.startsWith(v==='inprogress'?'board':v)));
+  ['boardView','archiveView','litView'].forEach(id=>document.getElementById(id).classList.toggle('hidden',!id.startsWith(v==='inprogress'?'board':v)));
   document.getElementById('boardView').classList.toggle('hidden',v!=='board');
   document.getElementById('archiveView').classList.toggle('hidden',v!=='archive');
-  document.getElementById('activityView').classList.toggle('hidden',v!=='activity');
   document.getElementById('litView').classList.toggle('hidden',v!=='lit');
   document.getElementById('dashView').classList.add('hidden');
   renderHeader();
   if(v==='board')renderBoard();
   else if(v==='archive')renderArchive();
-  else if(v==='activity')renderActivity();
+  
   else if(v==='lit')renderLit();
 }
 
 function selPaper(pid){
   sel=pid;view='board';
-  ['emptyState','dashView','archiveView','activityView','litView'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  ['emptyState','dashView','archiveView','litView'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   document.getElementById('boardView').classList.remove('hidden');
   renderSidebar();renderHeader();renderBoard();closeSidebar();
 }
@@ -1026,19 +1020,6 @@ function renderArchive(){
   }).join('');
 }
 
-// ===== ACTIVITY =====
-async function renderActivity(){
-  if(!sel)return;
-  const list=document.getElementById('activityList');
-  list.innerHTML='<div class="act-empty">Loading...</div>';
-  const items=await loadActivity(sel);
-  if(!items.length){list.innerHTML='<div class="act-empty">No activity yet.</div>';return;}
-  const icons={created:'✨',moved:'🔄',done:'✅',archived:'📦',unarchived:'📤',deleted:'🗑️',paper:'📄'};
-  list.innerHTML=items.map(a=>{
-    const type=a.action.includes('to Done')?'done':a.action.includes('moved')?'moved':a.action.includes('archived')&&!a.action.includes('restored')?'archived':a.action.includes('restored')?'unarchived':a.action.includes('deleted')?'deleted':a.action.includes('paper')?'paper':'created';
-    return `<div class="act-item"><div class="act-ico">${icons[type]||'📝'}</div><div class="act-body"><div class="act-txt"><strong>${esc(a.actor)}</strong> ${esc(a.action)}</div><div class="act-time">${timeAgo(a.created_at)}</div></div></div>`;
-  }).join('');
-}
 
 // ===== LITERATURE VIEW =====
 function renderLit(){
@@ -1435,7 +1416,7 @@ async function addPaper(){
   const{data,error}=await db.from('papers').insert(paper).select().single();
   setBusy('btnAddPaper',false);
   if(error){showErr('Failed to add paper.');return;}
-  S.papers.push(data);await logAct(data.id,'','added paper "'+data.title+'"');
+  S.papers.push(data);
   closeModal('mAddPaper');renderSidebar();selPaper(data.id);
 }
 async function delPaper(pid){
@@ -1464,7 +1445,7 @@ async function addTask(){
   const{data,error}=await db.from('tasks').insert(task).select().single();
   setBusy('btnAddTask',false);
   if(error){showErr('Failed to add task.');return;}
-  S.tasks.push(data);await logAct(sel,data.title,'created task "'+data.title+'"');
+  S.tasks.push(data)
   closeModal('mAddTask');renderBoard();renderSidebar();
 }
 
@@ -1519,7 +1500,7 @@ async function toggleArchive(){
   const ns=t.status==='archived'?'todo':'archived';
   const{error}=await db.from('tasks').update({status:ns}).eq('id',editId);
   setBusy('btnArc',false);if(error){showErr('Failed.');return;}
-  await logAct(t.paper_id,t.title,ns==='archived'?`archived "${t.title}"`:`restored "${t.title}" from archive`);
+  
   t.status=ns;closeModal('mDetail');renderBoard();renderArchive();renderSidebar();
 }
 
@@ -1528,7 +1509,7 @@ async function deleteTask(){
   setBusy('btnDelTask',true);
   const{error}=await db.from('tasks').delete().eq('id',editId);
   setBusy('btnDelTask',false);if(error){showErr('Failed.');return;}
-  if(t)await logAct(t.paper_id,t.title,`deleted task "${t.title}"`);
+  if(t){}
   S.tasks=S.tasks.filter(x=>x.id!==editId);closeModal('mDetail');renderBoard();renderArchive();renderSidebar();
 }
 
@@ -1598,7 +1579,7 @@ async function onDrop(e,st){
     const prev=t.status;t.status=st;renderBoard();renderSidebar();
     const{error}=await db.from('tasks').update({status:st}).eq('id',dragId);
     if(error){t.status=prev;renderBoard();showErr('Failed to move task.');return;}
-    if(prev!==st)await logAct(t.paper_id,t.title,`moved "${t.title}" to ${STATUS_LABELS[st]}`);
+    //
   }
   dragId=null;
 }
@@ -1611,63 +1592,77 @@ function toggleDark(){
   document.getElementById('darkBtn').textContent=dark?'☀️  Light Mode':'🌙  Dark Mode';
 }
 
-// ===== SETUP =====
-function reconfigure(){
-  document.getElementById('setupUrl').value=localStorage.getItem('pf_supa_url')||'';
-  document.getElementById('setupKey').value=localStorage.getItem('pf_supa_key')||'';
-  document.getElementById('setupErr').textContent='';
-  openModal('mSetup');
-}
-
-async function saveSetup(){
-  const url=document.getElementById('setupUrl').value.trim();
-  const key=document.getElementById('setupKey').value.trim();
-  if(!url||!key){document.getElementById('setupErr').textContent='Both fields are required.';return;}
-  setBusy('btnSaveSetup',true);document.getElementById('setupErr').textContent='Testing connection...';
-  try{
-    const test=createClient(url,key);
-    const{error}=await test.from('papers').select('id').limit(1);
-    if(error)throw error;
-  }catch(e){
-    setBusy('btnSaveSetup',false);
-    document.getElementById('setupErr').textContent='Connection failed. Make sure you ran schema.sql and the credentials are correct.';
-    return;
-  }
-  localStorage.setItem('pf_supa_url',url);localStorage.setItem('pf_supa_key',key);
-  setBusy('btnSaveSetup',false);
-  closeModal('mSetup');
-  location.reload();
-}
-
 // ===== MODALS =====
 function openModal(id){document.getElementById(id).classList.remove('hidden');}
 function closeModal(id){document.getElementById(id).classList.add('hidden');}
-document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o&&o.id!=='mSetup')o.classList.add('hidden');}));
-document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay:not(.hidden)').forEach(o=>{if(o.id!=='mSetup')o.classList.add('hidden');});});
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o&&o.id!=='mAuth')o.classList.add('hidden');}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay:not(.hidden)').forEach(o=>{if(o.id!=='mAuth')o.classList.add('hidden');});});
 document.getElementById('inPTitle').addEventListener('keydown',e=>{if(e.key==='Enter')addPaper();});
 document.getElementById('inTTitle').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey)addTask();});
 document.getElementById('inPeopleName').addEventListener('keydown',e=>{if(e.key==='Enter')addPerson();});
 document.getElementById('inLabelName').addEventListener('keydown',e=>{if(e.key==='Enter')addLabel();});
 document.getElementById('cmInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addComment();}});
 document.getElementById('inColLabel').addEventListener('keydown',e=>{if(e.key==='Enter')addLitCol();});
-document.getElementById('setupKey').addEventListener('keydown',e=>{if(e.key==='Enter')saveSetup();});
+document.getElementById('authPassword').addEventListener('keydown',e=>{if(e.key==='Enter')submitAuth();});
 
 // ===== INIT =====
-async function init(){
-  if(localStorage.getItem('pf_dark')==='1'){document.body.classList.add('dark');document.getElementById('darkBtn').textContent='☀️  Light Mode';}
-  meId=localStorage.getItem('pf_me')||null;
-  db=createClient('https://nsrnkwhoysqlamgoserm.supabase.co','sb_publishable_fvfGXxmvdGRK159cYFc1-g_Q2j8zHiN');
+// ===== AUTH =====
+let currentUser=null;
+let authMode='signin';
+
+function toggleAuthMode(){
+  authMode=authMode==='signin'?'signup':'signin';
+  document.getElementById('authTitle').textContent=authMode==='signin'?'Sign in to continue':'Create your account';
+  document.getElementById('btnAuth').textContent=authMode==='signin'?'Sign in →':'Create account →';
+  document.getElementById('authToggleBtn').textContent=authMode==='signin'?'Create account':'Sign in instead';
+  document.getElementById('authErr').textContent='';
+}
+
+async function submitAuth(){
+  const email=document.getElementById('authEmail').value.trim();
+  const password=document.getElementById('authPassword').value;
+  if(!email||!password){document.getElementById('authErr').textContent='Please enter email and password.';return;}
+  setBusy('btnAuth',true);document.getElementById('authErr').textContent='';
+  const{data,error}=authMode==='signin'
+    ?await db.auth.signInWithPassword({email,password})
+    :await db.auth.signUp({email,password});
+  setBusy('btnAuth',false);
+  if(error){document.getElementById('authErr').textContent=error.message;return;}
+  if(authMode==='signup'&&!data.session){document.getElementById('authErr').textContent='Check your email to confirm your account.';return;}
+  currentUser=data.user;
+  closeModal('mAuth');
+  loadApp();
+}
+
+async function signOut(){
+  await db.auth.signOut();
+  location.reload();
+}
+
+async function loadApp(){
   try{
     await loadAll();
     document.getElementById('lo').classList.add('hidden');
+    const box=document.getElementById('authUserBox');
+    if(box&&currentUser){box.style.display='block';document.getElementById('authUserEmail').textContent=currentUser.email;}
+    meId=localStorage.getItem('pf_me')||null;
     renderMeSelect();renderSidebar();renderHeader();
     document.getElementById('dashView').classList.remove('hidden');renderDash();
     setupRealtime();
   }catch(err){
-    document.getElementById('loMsg').textContent='Connection failed.';
+    document.getElementById('loMsg').textContent='Failed to load data.';
     document.querySelector('#lo .spinner').style.display='none';
-    setTimeout(()=>{document.getElementById('lo').classList.add('hidden');reconfigure();},1500);
   }
+}
+
+// ===== INIT =====
+async function init(){
+  if(localStorage.getItem('pf_dark')==='1'){document.body.classList.add('dark');document.getElementById('darkBtn').textContent='☀️  Light Mode';}
+  db=createClient('https://nsrnkwhoysqlamgoserm.supabase.co','sb_publishable_fvfGXxmvdGRK159cYFc1-g_Q2j8zHiN');
+  const{data:{user}}=await db.auth.getUser();
+  if(!user){document.getElementById('lo').classList.add('hidden');openModal('mAuth');return;}
+  currentUser=user;
+  loadApp();
 }
 init();
 </script>

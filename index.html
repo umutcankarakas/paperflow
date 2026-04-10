@@ -1444,14 +1444,14 @@ async function addPaper(){
   const title=document.getElementById('inPTitle').value.trim();if(!title){document.getElementById('inPTitle').focus();return;}
   setBusy('btnAddPaper',true);
   const paper={id:uid(),title,notes:document.getElementById('inPNotes').value.trim(),url:document.getElementById('inPUrl').value.trim(),status:document.getElementById('inPStatus').value};
-  const{data,error}=await db.from('papers').insert(paper).select().single();
+  const{error}=await db.from('papers').insert(paper);
   setBusy('btnAddPaper',false);
   if(error){showErr('Failed to add paper.');return;}
-  S.papers.push(data);
-  const mem={id:uid(),paper_id:data.id,user_email:currentUser.email};
+  const mem={id:uid(),paper_id:paper.id,user_email:currentUser.email};
   const{data:md}=await db.from('paper_members').insert(mem).select().single();
   if(md)S.paperMembers.push(md);
-  closeModal('mAddPaper');renderSidebar();selPaper(data.id);
+  S.papers.push(paper);
+  closeModal('mAddPaper');renderSidebar();selPaper(paper.id);
 }
 async function delPaper(pid){
   if(!confirm('Delete this paper and all its tasks?'))return;

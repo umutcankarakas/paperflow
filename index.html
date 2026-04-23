@@ -662,7 +662,7 @@ body.dark ::-webkit-scrollbar-thumb{background:#4B5563}
     <div class="mb">
       <div style="background:var(--bg);border-radius:10px;padding:14px;margin-bottom:16px">
         <div style="font-size:13px;font-weight:600;margin-bottom:10px">Add Person</div>
-        <div class="frow frow2"><div class="fg"><label class="fl">Name *</label><input class="fi" id="inPeopleName" placeholder="Full name"></div><div class="fg"><label class="fl">Role</label><input class="fi" id="inPeopleRole" placeholder="PhD Student"></div></div>
+        <div class="fg"><label class="fl">Name *</label><input class="fi" id="inPeopleName" placeholder="Full name"></div>
         <div class="fg"><label class="fl">Email</label><input class="fi" id="inPeopleEmail" type="email" placeholder="name@uni.edu"></div>
         <div class="fg"><label class="fl">Avatar Color</label><div class="cpicker" id="peopleColorPicker"></div><input type="hidden" id="inPeopleColor" value=""></div>
         <button class="btn btn-p" id="btnAddPerson" style="width:100%;margin-top:4px" onclick="addPerson()">Add Person</button>
@@ -790,6 +790,8 @@ const DEFAULT_LIT_COLS=[
 
 // ===== UTILS =====
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,9);}
+const PERSON_COLORS=['#1A6AB8','#0EA5E9','#10B981','#F59E0B','#EF4444','#8B5CF6','#F97316','#06B6D4'];
+function randColor(){return PERSON_COLORS[Math.floor(Math.random()*PERSON_COLORS.length)];}
 function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
 function initials(n){return(n||'').split(' ').filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');}
 function avStyle(pid){const p=byId(S.people,pid);return p?.color?`style="background:${p.color}"`:''}
@@ -1559,15 +1561,15 @@ function openPeople(){
 function renderPeopleList(){
   const el=document.getElementById('peopleList');
   if(!S.people.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">No people yet</div>';return;}
-  el.innerHTML=S.people.map(p=>`<div class="person-row"><div class="av av-lg ${avClass(p.id)}" ${avStyle(p.id)}>${initials(p.name)}</div><div class="pi-info"><div class="pi-name">${esc(p.name)}</div><div class="pi-meta">${[p.role,p.email].filter(Boolean).map(esc).join(' · ')}</div></div><button class="del-btn" onclick="delPerson('${p.id}')">×</button></div>`).join('');
+  el.innerHTML=S.people.map(p=>`<div class="person-row"><div class="av av-lg ${avClass(p.id)}" ${avStyle(p.id)}>${initials(p.name)}</div><div class="pi-info"><div class="pi-name">${esc(p.name)}</div><div class="pi-meta">${p.email?esc(p.email):''}</div></div><button class="del-btn" onclick="delPerson('${p.id}')">×</button></div>`).join('');
 }
 async function addPerson(){
   const name=document.getElementById('inPeopleName').value.trim();if(!name){document.getElementById('inPeopleName').focus();return;}
   setBusy('btnAddPerson',true);
-  const person={id:uid(),name,role:document.getElementById('inPeopleRole').value.trim(),email:document.getElementById('inPeopleEmail').value.trim(),color:document.getElementById('inPeopleColor').value||''};
+  const person={id:uid(),name,email:document.getElementById('inPeopleEmail').value.trim(),color:document.getElementById('inPeopleColor').value||randColor()};
   const{data,error}=await db.from('people').insert(person).select().single();
   setBusy('btnAddPerson',false);if(error){showErr('Failed.');return;}
-  S.people.push(data);document.getElementById('inPeopleName').value='';document.getElementById('inPeopleRole').value='';document.getElementById('inPeopleEmail').value='';
+  S.people.push(data);document.getElementById('inPeopleName').value='';document.getElementById('inPeopleEmail').value='';
   renderColorPicker('peopleColorPicker','inPeopleColor','');renderPeopleList();renderMeSelect();document.getElementById('inPeopleName').focus();
 }
 async function delPerson(pid){
@@ -1673,9 +1675,8 @@ async function submitAuth(){
   if(isSignup&&!data.session){document.getElementById('authErr').textContent='Check your email to confirm your account.';return;}
   currentUser=data.user;
   if(isSignup){
-    const person={id:uid(),name,email,role:'',color:''};
-    const{data:pd}=await db.from('people').insert(person).select().single();
-    if(pd){}
+    const person={id:uid(),name,email,color:randColor()};
+    await db.from('people').insert(person);
   }
   closeModal('mAuth');
   loadApp();

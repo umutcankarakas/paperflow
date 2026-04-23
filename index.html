@@ -1355,7 +1355,7 @@ function setPrio(val,ctx){
 function renderAssigneeChips(cid,nid){
   const el=document.getElementById(cid),nm=nid?document.getElementById(nid):null;
   const paperEmails=sel?new Set(S.paperMembers.filter(m=>m.paper_id===sel).map(m=>m.user_email)):null;
-  const people=paperEmails?S.people.filter(p=>!p.email||paperEmails.has(p.email)):S.people;
+  const people=paperEmails?S.people.filter(p=>p.email&&paperEmails.has(p.email)):S.people;
   if(!people.length){el.innerHTML='';if(nm)nm.innerHTML=`No members yet. Invite people from the paper settings.`;return;}
   if(nm)nm.innerHTML='';
   el.innerHTML=people.map(p=>{const on=picks.has(p.id);return`<div class="chip ${on?'sel':''}" onclick="togglePick('${p.id}','${cid}','${nid||''}')"><div class="chip-av ${avClass(p.id)}" ${avStyle(p.id)}>${initials(p.name)}</div>${esc(p.name)}${on?' ✓':''}</div>`;}).join('');

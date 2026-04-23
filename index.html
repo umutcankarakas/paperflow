@@ -1351,9 +1351,11 @@ function setPrio(val,ctx){
 // ===== CHIPS =====
 function renderAssigneeChips(cid,nid){
   const el=document.getElementById(cid),nm=nid?document.getElementById(nid):null;
-  if(!S.people.length){el.innerHTML='';if(nm)nm.innerHTML=`No people yet. <button class="btn btn-g btn-sm" onclick="closeModal('mAddTask');openPeople()">Add people</button>`;return;}
+  const paperEmails=sel?new Set(S.paperMembers.filter(m=>m.paper_id===sel).map(m=>m.user_email)):null;
+  const people=paperEmails?S.people.filter(p=>!p.email||paperEmails.has(p.email)):S.people;
+  if(!people.length){el.innerHTML='';if(nm)nm.innerHTML=`No members yet. Invite people from the paper settings.`;return;}
   if(nm)nm.innerHTML='';
-  el.innerHTML=S.people.map(p=>{const on=picks.has(p.id);return`<div class="chip ${on?'sel':''}" onclick="togglePick('${p.id}','${cid}','${nid||''}')"><div class="chip-av ${avClass(p.id)}" ${avStyle(p.id)}>${initials(p.name)}</div>${esc(p.name)}${on?' ✓':''}</div>`;}).join('');
+  el.innerHTML=people.map(p=>{const on=picks.has(p.id);return`<div class="chip ${on?'sel':''}" onclick="togglePick('${p.id}','${cid}','${nid||''}')"><div class="chip-av ${avClass(p.id)}" ${avStyle(p.id)}>${initials(p.name)}</div>${esc(p.name)}${on?' ✓':''}</div>`;}).join('');
 }
 function renderLabelChips(cid){
   const el=document.getElementById(cid);
@@ -1406,8 +1408,7 @@ async function addPaperMember(){
   if(error){showErr('Failed to add member.');return;}
   S.paperMembers.push(data);
   if(!S.people.find(p=>p.email===email)){
-    const name=email.split('@')[0];
-    const person={id:uid(),name,email,role:'',color:''};
+    const person={id:uid(),name:email,email,role:'',color:''};
     const{data:pd}=await db.from('people').insert(person).select().single();
     if(pd){S.people.push(pd);renderMeSelect();}
   }

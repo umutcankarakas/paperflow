@@ -514,6 +514,7 @@ body.dark ::-webkit-scrollbar-thumb{background:#4B5563}
     </div>
     <div class="mb">
       <div id="authErr" style="color:#EF4444;font-size:13px;margin-bottom:10px;min-height:16px"></div>
+      <div class="fg hidden" id="authNameRow"><label class="fl">Full Name</label><input class="fi" id="authName" placeholder="Ada Lovelace"></div>
       <div class="fg"><label class="fl">Email</label><input class="fi" id="authEmail" type="email" placeholder="you@example.com"></div>
       <div class="fg"><label class="fl">Password</label><input class="fi" id="authPassword" type="password" placeholder="••••••••"></div>
     </div>
@@ -1648,24 +1649,34 @@ let authMode='signin';
 
 function toggleAuthMode(){
   authMode=authMode==='signin'?'signup':'signin';
-  document.getElementById('authTitle').textContent=authMode==='signin'?'Sign in to continue':'Create your account';
-  document.getElementById('btnAuth').textContent=authMode==='signin'?'Sign in →':'Create account →';
-  document.getElementById('authToggleBtn').textContent=authMode==='signin'?'Create account':'Sign in instead';
+  const isSignup=authMode==='signup';
+  document.getElementById('authTitle').textContent=isSignup?'Create your account':'Sign in to continue';
+  document.getElementById('btnAuth').textContent=isSignup?'Create account →':'Sign in →';
+  document.getElementById('authToggleBtn').textContent=isSignup?'Sign in instead':'Create account';
+  document.getElementById('authNameRow').classList.toggle('hidden',!isSignup);
   document.getElementById('authErr').textContent='';
 }
 
 async function submitAuth(){
   const email=document.getElementById('authEmail').value.trim();
   const password=document.getElementById('authPassword').value;
+  const isSignup=authMode==='signup';
+  const name=isSignup?document.getElementById('authName').value.trim():'';
   if(!email||!password){document.getElementById('authErr').textContent='Please enter email and password.';return;}
+  if(isSignup&&!name){document.getElementById('authErr').textContent='Please enter your name.';return;}
   setBusy('btnAuth',true);document.getElementById('authErr').textContent='';
-  const{data,error}=authMode==='signin'
-    ?await db.auth.signInWithPassword({email,password})
-    :await db.auth.signUp({email,password});
+  const{data,error}=isSignup
+    ?await db.auth.signUp({email,password})
+    :await db.auth.signInWithPassword({email,password});
   setBusy('btnAuth',false);
   if(error){document.getElementById('authErr').textContent=error.message;return;}
-  if(authMode==='signup'&&!data.session){document.getElementById('authErr').textContent='Check your email to confirm your account.';return;}
+  if(isSignup&&!data.session){document.getElementById('authErr').textContent='Check your email to confirm your account.';return;}
   currentUser=data.user;
+  if(isSignup){
+    const person={id:uid(),name,email,role:'',color:''};
+    const{data:pd}=await db.from('people').insert(person).select().single();
+    if(pd){}
+  }
   closeModal('mAuth');
   loadApp();
 }

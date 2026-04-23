@@ -404,7 +404,6 @@ body.dark ::-webkit-scrollbar-thumb{background:#4B5563}
   <div class="papers-list" id="papersList"></div>
   <div class="sb-foot">
     <button class="sb-btn" onclick="openAddPaper()">➕ &nbsp;Add Paper</button>
-    <button class="sb-btn" onclick="openPeople()">👥 &nbsp;Manage People</button>
     <button class="sb-btn" onclick="openLabels()">🏷️ &nbsp;Manage Labels</button>
     <button class="sb-btn" onclick="toggleDark()" id="darkBtn">🌙 &nbsp;Dark Mode</button>
     <div class="me-box" id="authUserBox" style="display:none">
@@ -1406,6 +1405,12 @@ async function addPaperMember(){
   const{data,error}=await db.from('paper_members').insert(row).select().single();
   if(error){showErr('Failed to add member.');return;}
   S.paperMembers.push(data);
+  if(!S.people.find(p=>p.email===email)){
+    const name=email.split('@')[0];
+    const person={id:uid(),name,email,role:'',color:''};
+    const{data:pd}=await db.from('people').insert(person).select().single();
+    if(pd){S.people.push(pd);renderMeSelect();}
+  }
   document.getElementById('pdMemberEmail').value='';
   renderPaperMembers();
 }
